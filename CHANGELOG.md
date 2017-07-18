@@ -2,6 +2,7 @@
 
 ## 2.3.1
 
+- [#384](https://github.com/clojure-emacs/clj-refactor.el/issues/384) Add `cljr-auto-sort-project-dependencies`.
 - [#363](https://github.com/clojure-emacs/clj-refactor.el/issues/363) cljr-favor-prefix-notation by default is set to false
 - Display keymap bindings in documentation for minor mode
 - New config setting `cljr-libspec-whitelist` to prevent libspecs which appear unused but are side-effecting at load from being pruned.
