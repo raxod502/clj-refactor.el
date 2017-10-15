@@ -21,6 +21,7 @@
 - Remove *most* of the code implementing `let` related refactorings because these featured got migrated and reworked in Clojure mode. The usual mnemonics for these features still work and also a version of these features using multiple cursors are still maintained here as multiple cursors mode is not supported in Clojure mode.
 - [#294](https://github.com/clojure-emacs/clj-refactor.el/issues/294) Remove dash library dependency.
 - [#372](https://github.com/clojure-emacs/clj-refactor.el/issues/372) Remove s.el dependency
+- [#391](https://github.com/clojure-emacs/clj-refactor.el/issues/391) Prevent refactor-nrepl from being injected when starting a REPL outside a project, and add an option `cljr-suppress-outside-project-warning` to suppress the resultant warning.
 
 ### Bugs fixed
 

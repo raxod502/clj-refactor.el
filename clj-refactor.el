@@ -155,6 +155,13 @@ as can be."
   :group 'cljr
   :type 'boolean)
 
+(defcustom cljr-suppress-no-project-warning nil
+  "If t, no warning is printed when starting a REPL outside a project.
+By default, a warning is printing in this case since clj-refactor
+will not work as expected in such REPLs."
+  :group 'cljr
+  :type 'boolean)
+
 (defcustom cljr-find-usages-ignore-analyzer-errors nil
   "DEPRECATED: use `cljr-ignore-analyzer-errors' instead.
   If t, `cljr-find-usages' ignores namespaces that cannot be analyzed.
@@ -3131,15 +3138,21 @@ if REMOVE-PACKAGE_VERSION is t get rid of the (package: 20150828.1048) suffix."
 
 (defun cljr--check-middleware-version ()
   "Check whether clj-refactor and nrepl-refactor versions are the same"
-  (let ((refactor-nrepl-version (or (cljr--middleware-version)
-                                    "n/a")))
-    (unless (string-equal (downcase refactor-nrepl-version)
-                          (downcase (cljr--version :remove-package-version)))
-      (cider-repl-emit-interactive-stderr
-       (format "WARNING: clj-refactor and refactor-nrepl are out of sync.
+  (if (not (string-empty-p (cljr--project-dir)))
+      (let ((refactor-nrepl-version (or (cljr--middleware-version)
+                                        "n/a")))
+        (unless (string-equal (downcase refactor-nrepl-version)
+                              (downcase (cljr--version :remove-package-version)))
+          (cider-repl-emit-interactive-stderr
+           (format "WARNING: clj-refactor and refactor-nrepl are out of sync.
 Their versions are %s and %s, respectively.
 You can mute this warning by changing cljr-suppress-middleware-warnings."
-               (cljr--version) refactor-nrepl-version)))))
+                   (cljr--version) refactor-nrepl-version))))
+    (unless cljr-suppress-no-project-warning
+      (cider-repl-emit-interactive-stderr
+       "WARNING: No Clojure project was detected. The
+refactor-nrepl middleware was not enabled. (You can mute this
+warning by customizing `cljr-suppress-no-project-warning'.)"))))
 
 ;;;###autoload
 (defun cljr-version ()
@@ -3167,16 +3180,10 @@ You can mute this warning by changing cljr-suppress-middleware-warnings."
     (cider-repl-emit-interactive-stderr
      (format "WARNING: Can't determine Clojure version.  The refactor-nrepl middleware requires clojure %s (or newer)" cljr-minimum-clojure-version))))
 
-(defun cljr--check-project-context ()
-  (unless (cljr--project-dir)
-    (cider-repl-emit-interactive-stderr
-     (format "WARNING: No clojure project detected.  The refactor-nrepl middleware won't work and has been disabled!"))))
-
 (defun cljr--init-middleware ()
   (unless cljr-suppress-middleware-warnings
     (cljr--check-clojure-version)
     (cljr--check-middleware-version))
-  (cljr--check-project-context)
   ;; Best effort; don't freak people out with errors
   (ignore-errors
     (when (cljr--middleware-version) ; check if middleware is running
@@ -3992,18 +3999,25 @@ See: https://github.com/clojure-emacs/clj-refactor.el/wiki/cljr-change-function-
       (pop-to-buffer cljr--change-signature-buffer))))
 
 ;;;###autoload
-(defun cljr--inject-jack-in-dependencies ()
+(defun cljr--inject-jack-in-dependencies (cider-jack-in &rest args)
   "Inject the REPL dependencies of clj-refactor at `cider-jack-in'.
 If injecting the dependencies is not preferred set `cljr-inject-dependencies-at-jack-in' to nil."
-  (when (and cljr-inject-dependencies-at-jack-in
-             (boundp 'cider-jack-in-lein-plugins)
-             (boundp 'cider-jack-in-nrepl-middlewares))
-    (add-to-list 'cider-jack-in-lein-plugins `("refactor-nrepl" ,(cljr--version t)))
-    (add-to-list 'cider-jack-in-nrepl-middlewares "refactor-nrepl.middleware/wrap-refactor")))
+  (if (and cljr-inject-dependencies-at-jack-in
+           (boundp 'cider-jack-in-lein-plugins)
+           (boundp 'cider-jack-in-nrepl-middlewares)
+           (not (string-empty-p (cljr--project-dir))))
+      (let ((cider-jack-in-lein-plugins
+             (cons `("refactor-nrepl" ,(cljr--version t))
+                   cider-jack-in-lein-plugins))
+            (cider-jack-in-nrepl-middlewares
+             (cons "refactor-nrepl.middleware/wrap-refactor"
+                   cider-jack-in-nrepl-middlewares)))
+        (apply cider-jack-in args))
+    (apply cider-jack-in args)))
 
 ;;;###autoload
 (eval-after-load 'cider
-  '(cljr--inject-jack-in-dependencies))
+  '(advice-add #'cider-jack-in :around #'cljr--inject-jack-in-dependencies))
 
 (add-hook 'cider-connected-hook #'cljr--init-middleware)
 
